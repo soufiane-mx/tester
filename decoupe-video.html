@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Découpeur Vidéo avec ffmpeg.wasm</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Librairie ffmpeg.wasm depuis jsdelivr -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    input, button {
+      display: block;
+      margin-top: 10px;
+      width: 100%;
+      padding: 8px;
+      font-size: 16px;
+    }
+    button {
+      cursor: pointer;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    #downloadLink {
+      margin-top: 20px;
+      display: none;
+      text-align: center;
+      background-color: #2196f3;
+      padding: 12px;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>✂️ Découper une vidéo localement</h1>
+
+  <input type="file" id="uploader" accept="video/*" />
+  <label for="start">Début (secondes)</label>
+  <input type="number" id="start" value="0" min="0" step="0.1" />
+  <label for="end">Fin (secondes)</label>
+  <input type="number" id="end" value="5" min="0" step="0.1" />
+  <button id="cutBtn">Découper</button>
+
+  <a id="downloadLink" download="video-decoupee.mp4">⬇️ Télécharger la vidéo découpée</a>
+
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true });
+
+    const uploader = document.getElementById('uploader');
+    const startInput = document.getElementById('start');
+    const endInput = document.getElementById('end');
+    const cutBtn = document.getElementById('cutBtn');
+    const downloadLink = document.getElementById('downloadLink');
+
+    cutBtn.addEventListener('click', async () => {
+      if (!uploader.files.length) {
+        alert('Veuillez choisir une vidéo.');
+        return;
+      }
+
+      const start = parseFloat(startInput.value);
+      const end = parseFloat(endInput.value);
+
+      if (isNaN(start) || isNaN(end) || start < 0 || end <= start) {
+        alert('Veuillez entrer des temps valides (fin > début).');
+        return;
+      }
+
+      cutBtn.disabled = true;
+      cutBtn.textContent = 'Chargement de FFmpeg...';
+
+      if (!ffmpeg.isLoaded()) {
+        await ffmpeg.load();
+      }
+
+      cutBtn.textContent = 'Découpage en cours...';
+
+      const file = uploader.files[0];
+      const inputFileName = file.name;
+      const outputFileName = 'output.mp4';
+
+      ffmpeg.FS('writeFile', inputFileName, await fetchFile(file));
+
+      await ffmpeg.run(
+        '-i', inputFileName,
+        '-ss', `${start}`,
+        '-to', `${end}`,
+        '-c', 'copy',
+        outputFileName
+      );
+
+      const data = ffmpeg.FS('readFile', outputFileName);
+
+      const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+      const url = URL.createObjectURL(videoBlob);
+
+      downloadLink.href = url;
+      downloadLink.style.display = 'block';
+
+      cutBtn.textContent = 'Découper';
+      cutBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>
